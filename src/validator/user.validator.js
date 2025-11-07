@@ -2,173 +2,193 @@ import validator from "validator";
 import passwordValidator from "password-validator";
 
 /**
- * Creates a password validation schema
- * @returns {Object} Password validator schema
+ * Build password validation schema
+ * @returns {passwordValidator} Password schema instance
  */
 const createPasswordSchema = () => {
   const schema = new passwordValidator();
-  
+
   schema
-    .is().min(8)                                    // Minimum length 8
-    .is().max(100)                                  // Maximum length 100
-    .has().uppercase()                              // Must have uppercase letters
-    .has().lowercase()                              // Must have lowercase letters
-    .has().digits(1)                                // Must have at least 1 digit
-    .has().symbols(1)                               // Must have at least 1 symbol
-    .has().not().spaces()                           // Should not have spaces
-    .is().not().oneOf(['Password123!', 'Passw0rd!', '12345678!Aa']); // Blacklist common passwords
-    
+    .is().min(8) // Minimum length 8
+    .is().max(100) // Maximum length 100
+    .has().uppercase() // At least one uppercase
+    .has().lowercase() // At least one lowercase
+    .has().digits(1) // Must contain at least 1 digit
+    .has().symbols(1) // Must contain at least 1 symbol
+    .has().not().spaces() // No spaces allowed
+    .is().not().oneOf([
+      "Password123!",
+      "Passw0rd!",
+      "12345678!Aa",
+    ]); // Blacklist weak passwords
+
   return schema;
 };
 
 /**
- * Sanitizes input data to prevent XSS attacks
- * @param {Object} data - Raw input data
- * @returns {Object} Sanitized data
+ * Sanitizes input data to prevent XSS / injection attacks
+ * @param {Object} data - Raw input object
+ * @returns {Object} Sanitized object
  */
-const sanitization = (data) => {
-  const sanitizedData = {};
-  
-  // Common sanitization for all fields
-  Object.keys(data).forEach(key => {
-    if (typeof data[key] === 'string') {
-      // Special handling for password (only trim, no escape)
-      if (key === 'password' || key === 'confirmPassword') {
-        sanitizedData[key] = validator.trim(data[key]);
+const sanitization = (data = {}) => {
+  const sanitized = {};
+
+  Object.keys(data).forEach((key) => {
+    if (typeof data[key] === "string") {
+      // For passwords, only trim — no escape
+      if (key === "password" || key === "confirmPassword") {
+        sanitized[key] = validator.trim(data[key]);
       } else {
-        // For other string fields, escape and trim
-        sanitizedData[key] = validator.escape(validator.trim(data[key]));
+        sanitized[key] = validator.escape(validator.trim(data[key]));
       }
     } else {
-      // Non-string data passes through unchanged
-      sanitizedData[key] = data[key];
+      sanitized[key] = data[key];
     }
   });
-  
-  return sanitizedData;
+
+  return sanitized;
 };
 
 /**
- * Validates form data
- * @param {Object} rawData - Raw form data
- * @param {Array} requiredFields - List of required fields
- * @param {Object} options - Validation options
- * @returns {Object} Object containing validation messages and sanitized data
+ * Validate form data
+ * @param {Object} rawData - Raw request body
+ * @param {Array<string>} requiredFields - Fields that must be present
+ * @param {Object} options - Extra validation settings
+ * @returns {{ messages: string[], data: Object, isValid: boolean }}
  */
-const validation = (rawData, requiredFields = [], options = {}) => {
-  // Define default options
+const validation = (rawData = {}, requiredFields = [], options = {}) => {
   const defaultOptions = {
     validatePassword: true,
     validateEmail: true,
-    passwordMatchField: null, // For password confirmation check
-    customValidators: {} // Custom validation functions
+    passwordMatchField: null,
+    customValidators: {},
+    allowedDomains: [],
   };
-  
+
   const settings = { ...defaultOptions, ...options };
   const messages = [];
   const sanitizedData = sanitization(rawData);
-  
-  // Check required fields
+
+  // Default required fields
   if (requiredFields.length === 0) {
-    // Default required fields if none specified
-    requiredFields = ['email', 'password'];
-    if (rawData.nama !== undefined) requiredFields.push('nama');
+    requiredFields = ["email", "password"];
+    if (rawData.nama !== undefined) {
+      requiredFields.push("nama");
+    }
   }
-  
-  // Validate required fields
-  requiredFields.forEach(field => {
-    if (!sanitizedData[field] || validator.isEmpty(sanitizedData[field].toString())) {
-      messages.push(`${field.charAt(0).toUpperCase() + field.slice(1)} harus diisi`);
+
+  const formatField = (field) =>
+    field.charAt(0).toUpperCase() + field.slice(1);
+
+  // Required-field validation
+  requiredFields.forEach((field) => {
+    if (!sanitizedData[field] || validator.isEmpty(String(sanitizedData[field]))) {
+      messages.push(`${formatField(field)} is required`);
     }
   });
-  
-  // Validate email if it exists and is not empty
-  if (settings.validateEmail && 
-      sanitizedData.email && 
-      !validator.isEmpty(sanitizedData.email)) {
+
+  // Email validation
+  if (
+    settings.validateEmail &&
+    sanitizedData.email &&
+    !validator.isEmpty(sanitizedData.email)
+  ) {
     if (!validator.isEmail(sanitizedData.email)) {
-      messages.push("Email tidak valid");
+      messages.push("Invalid email format");
     }
-    
-    // Optional domain validation
-    if (options.allowedDomains && options.allowedDomains.length > 0) {
-      const domain = sanitizedData.email.split('@')[1];
-      if (!options.allowedDomains.includes(domain)) {
-        messages.push(`Email harus menggunakan domain: ${options.allowedDomains.join(', ')}`);
+
+    // Optional domain restriction
+    if (settings.allowedDomains.length > 0) {
+      const domain = sanitizedData.email.split("@")[1];
+      if (!settings.allowedDomains.includes(domain)) {
+        messages.push(
+          `Email must use one of the following domains: ${settings.allowedDomains.join(
+            ", "
+          )}`
+        );
       }
     }
   }
-  
-  // Validate password if it exists and is not empty
-  if (settings.validatePassword && 
-      sanitizedData.password && 
-      !validator.isEmpty(sanitizedData.password)) {
-    
-    const passwordSchema = createPasswordSchema();
-    const passwordValidation = passwordSchema.validate(sanitizedData.password, { list: true });
-    
-    if (passwordValidation.length > 0) {
+
+  // Password validation
+  if (
+    settings.validatePassword &&
+    sanitizedData.password &&
+    !validator.isEmpty(sanitizedData.password)
+  ) {
+    const schema = createPasswordSchema();
+    const validationList = schema.validate(sanitizedData.password, { list: true });
+
+    if (validationList.length > 0) {
       messages.push(
-        "Password harus terdiri dari 8 karakter, 1 huruf besar, 1 huruf kecil, 1 angka, dan 1 simbol"
+        "Password must be at least 8 characters, include uppercase, lowercase, number, and symbol"
       );
     }
-    
-    // Check if password matches confirmation field
-    if (settings.passwordMatchField && 
-        sanitizedData[settings.passwordMatchField] && 
-        sanitizedData.password !== sanitizedData[settings.passwordMatchField]) {
-      messages.push("Password dan konfirmasi password tidak cocok");
+
+    // Confirm password match
+    if (
+      settings.passwordMatchField &&
+      sanitizedData[settings.passwordMatchField] &&
+      sanitizedData.password !== sanitizedData[settings.passwordMatchField]
+    ) {
+      messages.push("Password confirmation does not match");
     }
   }
-  
-  // Run custom validators
-  Object.keys(settings.customValidators).forEach(field => {
+
+  // Custom validators
+  Object.keys(settings.customValidators).forEach((field) => {
     if (sanitizedData[field] !== undefined) {
       const validatorFn = settings.customValidators[field];
-      const customValidation = validatorFn(sanitizedData[field], sanitizedData);
-      
-      if (customValidation !== true) {
-        messages.push(customValidation);
+      const result = validatorFn(sanitizedData[field], sanitizedData);
+
+      if (result !== true) {
+        messages.push(result);
       }
     }
   });
-  
-  return { 
-    messages, 
+
+  return {
+    messages,
     data: sanitizedData,
-    isValid: messages.length === 0
+    isValid: messages.length === 0,
   };
 };
 
 /**
- * Utility to create custom field validation rules
- * @param {Object} rules - Validation rules configuration
- * @returns {Function} Validation function
+ * Helper to create a custom field validator
+ * @param {Object} rules - Validation rules
+ * @returns {Function} validation function
  */
 const createFieldValidator = (rules) => {
   return (value, allData) => {
     if (rules.minLength && value.length < rules.minLength) {
-      return `${rules.fieldName} harus minimal ${rules.minLength} karakter`;
+      return `${rules.fieldName} must be at least ${rules.minLength} characters`;
     }
-    
+
     if (rules.maxLength && value.length > rules.maxLength) {
-      return `${rules.fieldName} tidak boleh lebih dari ${rules.maxLength} karakter`;
+      return `${rules.fieldName} cannot exceed ${rules.maxLength} characters`;
     }
-    
+
     if (rules.pattern && !rules.pattern.test(value)) {
-      return rules.message || `${rules.fieldName} tidak valid`;
+      return rules.message || `${rules.fieldName} is invalid`;
     }
-    
-    if (rules.custom && typeof rules.custom === 'function') {
+
+    if (rules.custom && typeof rules.custom === "function") {
       const customResult = rules.custom(value, allData);
       if (customResult !== true) {
         return customResult;
       }
     }
-    
+
     return true;
   };
 };
 
-export { validation, sanitization, createFieldValidator };
+export {
+  validation,
+  sanitization,
+  createPasswordSchema,
+  createFieldValidator,
+};
+
 export default validation;
