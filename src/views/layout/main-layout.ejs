@@ -2,13 +2,51 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Responsive viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><%= title %></title>
+
+    <!-- Dynamic title -->
+    <title><%= title || "My App" %></title>
+
+    <!-- Optional page description -->
+    <% if (description) { %>
+      <meta name="description" content="<%= description %>" />
+    <% } %>
+
+    <!-- Page keywords -->
+    <% if (keywords) { %>
+      <meta name="keywords" content="<%= keywords %>">
+    <% } %>
+
+    <!-- Security headers -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="referrer" content="no-referrer" />
+
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/style.css" />
+
+    <!-- SweetAlert -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Page-specific head content -->
+    <% if (head) { %>
+      <%= head %>
+    <% } %>
   </head>
+
   <body>
-    <%- body %>
+    <!-- Page Content -->
+    <main>
+      <%- body %>
+    </main>
+
+    <!-- Global scripts -->
     <script src="/js/script.js"></script>
+
+    <!-- Page-specific scripts -->
+    <% if (scripts) { %>
+      <%= scripts %>
+    <% } %>
   </body>
 </html>
