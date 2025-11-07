@@ -14,32 +14,45 @@ const appMidleware = express();
 const upload = multer();
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-appMidleware.use(pinoHttp({ logger }));
-appMidleware.use(expressEjsLayouts);
-appMidleware.use(express.static(path.join(__dirname, "../../public")));
-appMidleware.use(bodyParser.json());
-appMidleware.use(bodyParser.urlencoded({ extended: true }));
-appMidleware.use(upload.array());
-appMidleware.use(cookieParser());
+// Logging request → first middleware
 appMidleware.use(
-  session({
-    secret: "1213-1313-13131-sadad",
-    resave: false,
-    saveUninitialized: false,
+  pinoHttp({
+    logger,
   })
 );
 
-// mendefinisikan contoh log
-logger.info({ field: "value" }, "ini adalah contoh info");
+// EJS Layout
+appMidleware.use(expressEjsLayouts);
 
-// level log
-logger.fatal("ini adalah contaoh fatal");
-logger.error("ini adalah contaoh error");
-logger.warn("ini adalah contaoh warn");
-logger.info("ini adalah contaoh info");
-logger.debug("ini adalah contaoh debug");
-logger.trace("ini adalah contaoh trace");
+// Serve public
+appMidleware.use(express.static(path.join(__dirname, "../../public")));
 
+// Body Parser
+appMidleware.use(express.json());
+appMidleware.use(express.urlencoded({ extended: true }));
+
+// Multer — jika hanya menerima form tanpa files
+appMidleware.use(upload.none());
+
+// Cookie + Session
+appMidleware.use(cookieParser());
+appMidleware.use(
+  session({
+    secret: process.env.SESSION_SECRET || "fallback-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60, // 1h
+      secure: false, // set true if https
+    },
+  })
+);
+
+// Flash Message
 appMidleware.use(flash());
+
+// contoh log (jalankan sekali di startup, bukan tiap request)
+logger.info("Middleware loaded successfully");
 
 export default appMidleware;
