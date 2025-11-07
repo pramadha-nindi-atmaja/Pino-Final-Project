@@ -1,7 +1,22 @@
+<% /* Optional SweetAlert message */ %>
+<% if (message) { %>
+<script>
+  Swal.fire({
+    title: "Welcome!",
+    text: "<%= message %>",
+    icon: "success",
+  });
+</script>
+<% } %>
+
 <div class="row center">
   <div class="container col-50">
-    <h1>Halaman Utama</h1>
+    <h1 class="header">Protected Page</h1>
+
     <p><%= message %></p>
-    <p><a href="/logout">Logout</a></p>
+
+    <div class="actions">
+      <a href="/logout" class="btn danger">Logout</a>
+    </div>
   </div>
 </div>
